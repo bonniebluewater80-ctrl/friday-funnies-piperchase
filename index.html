@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Piper's Treat Chase — The Friday Funnies</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piper's Treat Chase | The Friday Funnies</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Bree+Serif&display=swap');
 
@@ -175,6 +175,21 @@
   @media (prefers-reduced-motion:reduce){
     button.play:active{transform:none;}
   }
+
+/* Friday Funnies arcade refresh */
+:root{--cream:#fff7f9;--ink:#39252b;--piper-red:#a92543;--piper-rose:#edbac6}
+body{padding:14px 12px 20px;background:radial-gradient(ellipse at top,#ffe6ee,transparent 65%),var(--cream);font-family:system-ui,sans-serif}
+.kicker{font-family:system-ui,sans-serif;font-size:11px;font-weight:750;letter-spacing:.16em;text-transform:uppercase;margin-bottom:6px}
+h1{font-family:'Bree Serif',Georgia,serif;font-weight:400;color:var(--piper-red);font-size:clamp(26px,7vw,34px)}
+.sub{color:#69505a;font-size:14px;line-height:1.4}.peek{width:74px;margin:8px auto -10px}
+.scorebar{gap:10px;margin:12px 0 10px;font-size:13px}.scorebar span{background:#fff;border:1px solid #edbac6;border-radius:12px;padding:8px 12px}.scorebar b{display:block;font-size:19px;text-align:center}
+.stage{border:3px solid #bc4965;border-radius:18px;box-shadow:0 7px 20px #a9254315;flex-shrink:0;max-width:100%}
+.overlay{background:rgba(255,247,249,.96);padding:14px;gap:12px}.overlay h2{font-family:'Bree Serif',Georgia,serif;font-weight:400;color:var(--piper-red);font-size:25px}.overlay p{font-family:system-ui,sans-serif;color:#69505a;font-size:14px;line-height:1.5}
+button.play{font-family:system-ui,sans-serif;font-size:16px;min-height:46px;box-shadow:none}
+.pad{display:grid!important;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(2,48px);gap:12px;margin-top:14px}.pad button{border:1px solid #dca9b7;border-radius:13px;touch-action:manipulation;font-size:21px}
+.tools{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:14px}.sound{margin:0;min-height:44px;font-family:system-ui,sans-serif;border:1px solid #dca9b7;box-shadow:none;font-size:14px}.sound:disabled{opacity:.5;cursor:default}
+.legend{margin:10px 0 0;font-size:12px;color:#69505a;text-align:center;line-height:1.5}footer{color:#69505a;font-size:12px}button:focus-visible{outline:3px solid #a92543;outline-offset:3px}
+@media(max-height:720px){body{padding-top:8px}.peek{width:44px}.scorebar{margin:8px 0}.scorebar span{padding:5px 10px}.pad{margin-top:10px;grid-template-rows:repeat(2,44px);gap:10px}.tools{margin-top:10px}.legend{margin-top:7px}}
 </style>
 </head>
 <body>
@@ -193,10 +208,10 @@
 </div>
 
 <div class="stage">
-  <canvas id="game"></canvas>
+  <canvas id="game" aria-label="Piper’s treat maze. Use arrow keys, WASD, swipe, or direction buttons."></canvas>
   <div class="overlay" id="overlay">
     <h2 id="ov-title">Ready to run?</h2>
-    <p id="ov-text">Arrow keys, WASD, swipe, or the buttons below. Grab a big biscuit and the squirrels turn blue — chase them.</p>
+    <p id="ov-text">Arrow keys, WASD, swipe, or the buttons below. Grab a big biscuit and the squirrels turn blue. Then you can chase them.</p>
     <button class="play" id="ov-btn">Play</button>
   </div>
 </div>
@@ -208,7 +223,7 @@
   <button class="right" data-dir="right" aria-label="Right">▶</button>
 </div>
 
-<button class="sound" id="sound" aria-pressed="true">Sound on</button>
+<div class="tools"><button class="sound" id="pause" disabled>Pause</button><button class="sound" id="sound" aria-pressed="true">Sound on</button></div><p class="legend" id="progress" role="status">Collect the treats. Big biscuits let you chase blue squirrels.</p>
 <footer>Starring Piper 🐾</footer>
 
 <script>
@@ -252,16 +267,15 @@
 
   let TILE = 10;
   function sizeBoard(){
-    // fill as much of the window as we can while keeping the whole maze visible
-    // fit inside BOTH dimensions, with only a modest reserve for the
-    // header and score line so the board still gets most of the space
-    const availW = window.innerWidth - 20;
-    const availH = window.innerHeight - 195;
-    TILE = Math.floor(Math.min(availW / COLS, availH / ROWS));
-    if (TILE < 11) TILE = 11;
-    if (TILE > 40) TILE = 40;
-    canvas.width  = COLS * TILE;
-    canvas.height = ROWS * TILE;
+    const availW = Math.min(window.innerWidth - 30, 560);
+    const reserve = window.innerHeight < 720 ? 335 : 390;
+    const availH = Math.max(220, window.innerHeight - reserve);
+    TILE = Math.max(6, Math.min(availW / COLS, availH / ROWS));
+    const width = COLS * TILE, height = ROWS * TILE;
+    const scale = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.style.width = width + 'px'; canvas.style.height = height + 'px';
+    canvas.width = Math.round(width * scale); canvas.height = Math.round(height * scale);
+    ctx.setTransform(scale,0,0,scale,0,0);
   }
   sizeBoard();
   window.addEventListener('resize', sizeBoard);
@@ -335,6 +349,13 @@
 
   let grid, score, lives, best = 0, dots, running = false, frightTimer = 0;
   let piper, squirrels, mode = 'idle';
+  let totalDots = 0;
+  try { best = Number(localStorage.getItem('piper-chase-best')) || 0; } catch(e) {}
+  const pauseBtn = document.getElementById('pause');
+  function saveBest(){if(score > best){best = score;try{localStorage.setItem('piper-chase-best',String(best));}catch(e){}}}
+  function pauseGame(){if(!running)return;running=false;mode='paused';pauseBtn.disabled=true;showOverlay('Snack break?', 'Your treats and score are right where you left them.', 'Resume chase');}
+  pauseBtn.addEventListener('click',pauseGame);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseGame();});
 
   const DIRS = {
     up:    {x:0,  y:-1},
@@ -359,6 +380,7 @@
       }
       grid.push(row);
     }
+    totalDots = dots;
     return start;
   }
 
@@ -394,7 +416,9 @@
   }
 
   function updateHUD(){
+    saveBest();
     scoreEl.textContent = score;
+    document.getElementById("progress").textContent = `${totalDots - dots} of ${totalDots} treats collected` + (frightTimer > 0 ? " · Biscuit power!" : "");
     livesEl.textContent = lives;
     bestEl.textContent = best;
   }
@@ -524,6 +548,7 @@
   }
 
   function showOverlay(t, txt, btn){
+    pauseBtn.disabled = true;
     ovTitle.textContent = t;
     ovText.textContent = txt;
     ovBtn.textContent = btn;
@@ -537,10 +562,10 @@
         const cell = grid[r][c];
         const x = c*TILE, y = r*TILE;
         if(cell === 'wall'){
-          ctx.fillStyle = '#E4685E';
+          ctx.fillStyle = '#bc4965';
           roundRect(x+1, y+1, TILE-2, TILE-2, TILE*0.28);
           ctx.fill();
-          ctx.fillStyle = '#F7C9C3';
+          ctx.fillStyle = '#f6cbd6';
           roundRect(x+TILE*0.26, y+TILE*0.26, TILE*0.48, TILE*0.48, TILE*0.14);
           ctx.fill();
         } else if(cell === 'dot'){
@@ -586,7 +611,7 @@
     const fy = cy + d.y*lean + bob;
 
     // --- ears (solid red/chestnut, long and floppy — Piper's locked spec)
-    ctx.fillStyle = '#C4362F';
+    ctx.fillStyle = '#a45b36';
     ctx.beginPath();
     ctx.ellipse(fx - R*0.66, fy + R*0.10, R*0.34, R*0.48, 0.16, 0, Math.PI*2);
     ctx.fill(); ctx.stroke();
@@ -605,7 +630,7 @@
     ctx.beginPath();
     ctx.ellipse(fx, fy, R*0.76, R*0.75, 0, 0, Math.PI*2);
     ctx.clip();
-    ctx.fillStyle = '#C4362F';
+    ctx.fillStyle = '#a45b36';
     ctx.beginPath();
     ctx.ellipse(fx - R*0.46, fy - R*0.10, R*0.38, R*0.42, 0, 0, Math.PI*2);
     ctx.fill();
@@ -699,25 +724,31 @@
   }
 
   function draw(){
-    ctx.fillStyle = '#FFFDF8';
+    ctx.fillStyle = '#fffafb';
     ctx.fillRect(0,0,canvas.width,canvas.height);
     drawMaze();
     squirrels.forEach(drawSquirrel);
     drawPiper();
   }
 
-  function loop(){
+  let lastFrame = 0, accumulator = 0;
+  function loop(timestamp){
+    const elapsed = lastFrame ? Math.min(timestamp - lastFrame, 100) : 0;
+    lastFrame = timestamp;
     if(running){
-      movePiper();
-      moveSquirrels();
-      checkCollisions();
-      if(frightTimer > 0){
-        frightTimer--;
-        if(frightTimer === 0) squirrels.forEach(s=> s.frightened = false);
+      accumulator += elapsed;
+      while(accumulator >= 1000/60 && running){
+        movePiper();
+        if(running) moveSquirrels();
+        if(running) checkCollisions();
+        if(frightTimer > 0){
+          frightTimer--;
+          if(frightTimer === 0){ squirrels.forEach(s=> s.frightened = false); updateHUD(); }
+        }
+        accumulator -= 1000/60;
       }
-    }
-    draw();
-    requestAnimationFrame(loop);
+    } else accumulator = 0;
+    draw(); requestAnimationFrame(loop);
   }
 
   // ---------- input ----------
@@ -727,11 +758,14 @@
     W:'up', S:'down', A:'left', D:'right'
   };
   window.addEventListener('keydown', e=>{
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    if(e.key === 'Escape'){pauseGame();return;}
     const dir = keyMap[e.key];
     if(dir){ e.preventDefault(); piper.next = dir; }
   });
 
   document.querySelectorAll('.pad button').forEach(b=>{
+    b.addEventListener('pointerdown', e=>{e.preventDefault();piper.next = b.dataset.dir;});
     b.addEventListener('click', ()=> piper.next = b.dataset.dir);
   });
 
@@ -749,7 +783,8 @@
   }, {passive:true});
 
   ovBtn.addEventListener('click', ()=>{
-    if(mode === 'over' || mode === 'idle'){ reset(true); }
+    if(mode === 'paused'){ /* Keep the entire maze and positions. */ }
+    else if(mode === 'over' || mode === 'idle'){ reset(true); }
     else {
       // continue after losing a life: reset positions only
       const start = {c:13, r:22};
@@ -764,12 +799,14 @@
     mode = 'play';
     overlay.classList.add('hidden');
     running = true;
-    sndStart();
+    pauseBtn.disabled = false;
+    lastFrame = 0; accumulator = 0;
+    if(ovBtn.textContent !== "Resume chase") sndStart();
   });
 
   reset(true);
   mode = 'idle';
-  loop();
+  requestAnimationFrame(loop);
 })();
 </script>
 </body>
